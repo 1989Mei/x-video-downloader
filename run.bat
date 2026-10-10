@@ -21,9 +21,14 @@ if not defined PY (
 )
 
 rem ---- make sure yt-dlp is present ---------------------------------------
-"%PY%" -c "import yt_dlp" >nul 2>nul
-if errorlevel 1 if not exist ".venv\Scripts\yt-dlp.exe" (
-  echo Installing yt-dlp ...
+rem Accept any of: yt-dlp on PATH, importable module, project-local venv.
+set "HAVE_YTDLP="
+where yt-dlp >nul 2>nul && set "HAVE_YTDLP=1"
+if not defined HAVE_YTDLP (
+  "%PY%" -c "import yt_dlp" >nul 2>nul && set "HAVE_YTDLP=1"
+)
+if not exist ".venv\Scripts\yt-dlp.exe" if not defined HAVE_YTDLP (
+  echo yt-dlp was not found - installing it now ...
   echo.
   "%PY%" -m pip install -U yt-dlp
   echo.

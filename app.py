@@ -75,6 +75,7 @@ def banner(cfg):
     CTX["ffmpeg"] = ffmpeg
 
     print(f"\n  yt-dlp     : {CTX['ytdlpVersion']}")
+    print(f"  yt-dlp bin : {' '.join(ytdlp_cmd)}")
     print(f"  ffmpeg     : {ffmpeg or 'NOT FOUND'}")
     print(f"  output dir : {cfg['outdir']}")
     print(f"  proxy      : {cfg['proxy'] or 'not set (will try a direct connection)'}")

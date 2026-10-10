@@ -18,8 +18,13 @@ else
 fi
 
 # ---- make sure yt-dlp is present -----------------------------------------
-if [ ! -x ".venv/bin/yt-dlp" ] && ! "$PY" -c "import yt_dlp" >/dev/null 2>&1; then
-  echo "Installing yt-dlp ..."
+# Accept any of: yt-dlp on PATH, importable module, project-local venv.
+HAVE_YTDLP=0
+[ -x ".venv/bin/yt-dlp" ] && HAVE_YTDLP=1
+command -v yt-dlp >/dev/null 2>&1 && HAVE_YTDLP=1
+"$PY" -c "import yt_dlp" >/dev/null 2>&1 && HAVE_YTDLP=1
+if [ "$HAVE_YTDLP" = "0" ]; then
+  echo "yt-dlp was not found - installing it now ..."
   "$PY" -m pip install -U yt-dlp
   echo
 fi
