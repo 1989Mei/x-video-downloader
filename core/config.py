@@ -54,6 +54,7 @@ DEFAULTS = {
     "cookies_browser": "",        # "" | chrome | edge | firefox | brave | safari | chromium
     "concurrent_fragments": 4,
     "open_browser": True,
+    "auto_clean_temp": True,      # remove leftover fragments after each job
 }
 
 # environment variable -> config key
@@ -64,6 +65,7 @@ ENV_MAP = {
     "XDL_COOKIES": "cookies_browser",
     "XDL_FRAGMENTS": "concurrent_fragments",
     "XDL_OPEN_BROWSER": "open_browser",
+    "XDL_AUTO_CLEAN": "auto_clean_temp",
 }
 
 # Common local HTTP-proxy ports (Clash / Clash Verge / v2rayN / Surge / Nekoray ...).
@@ -137,6 +139,8 @@ def load(argv=None):
     ap.add_argument("--fragments", type=int, dest="concurrent_fragments",
                     help="concurrent HLS fragments (default 4)")
     ap.add_argument("--no-browser", action="store_true", help="do not open the browser on start")
+    ap.add_argument("--no-auto-clean", action="store_true",
+                    help="keep .part / .ytdl temporary files after a job finishes")
     ap.add_argument("--version", action="store_true", help="print version and exit")
 
     args = ap.parse_args(argv)
@@ -152,6 +156,8 @@ def load(argv=None):
             cfg[key] = val
     if args.no_browser:
         cfg["open_browser"] = False
+    if args.no_auto_clean:
+        cfg["auto_clean_temp"] = False
 
     # --- normalise ---
     if not str(cfg.get("outdir") or "").strip():
@@ -169,6 +175,7 @@ def load(argv=None):
         cfg["concurrent_fragments"] = DEFAULTS["concurrent_fragments"]
 
     cfg["open_browser"] = _as_bool(cfg["open_browser"])
+    cfg["auto_clean_temp"] = _as_bool(cfg.get("auto_clean_temp", True))
     cfg["cookies_browser"] = str(cfg.get("cookies_browser") or "").strip().lower()
     cfg["proxy"] = str(cfg.get("proxy") or "").strip()
     if not cfg["proxy"]:

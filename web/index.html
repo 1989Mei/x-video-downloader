@@ -80,9 +80,13 @@
   <section class="card">
     <div class="qhead">
       <h2 data-i18n="queue"></h2>
-      <button class="sm ghost" id="btnClear" data-i18n="clearDone"></button>
+      <div class="qacts">
+        <button class="sm ghost" id="btnClean" data-i18n="cleanTemp"></button>
+        <button class="sm ghost" id="btnClear" data-i18n="clearDone"></button>
+      </div>
     </div>
     <div id="tasks"></div>
+    <div class="msg" id="cleanMsg"></div>
   </section>
 
 </div>

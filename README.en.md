@@ -51,6 +51,7 @@ paste a link  →  parse qualities  →  pick one  →  queue it  →  open the 
 | ⚡ **Concurrent fragments** | 4 parallel fragments by default — measured ~60× faster than a single thread (16 KB/s → 1.1 MB/s) |
 | 🍪 **Browser cookies** | Works with protected and age-restricted posts |
 | 📋 **Download queue** | Queue several jobs; cancel any of them at any time |
+| 🧹 **Tidy output folder** | Temp fragments are cleaned after every job, so the folder keeps only finished files |
 | 🔄 **One-click yt-dlp update** | X changes often — stay current so extraction keeps working |
 | 🌏 **Bilingual UI** | Chinese / English, one click in the top-right corner |
 | 🔒 **Guard rails on the local API** | Random token + Origin check so other web pages can't drive it |
@@ -167,6 +168,7 @@ python app.py [options]
   --cookies NAME    reuse browser cookies: chrome / edge / firefox / brave / safari
   --fragments N     concurrent fragments, 1–16 (default 4)
   --no-browser      do not open the browser on start
+  --no-auto-clean   keep .part / .ytdl temp files after a job (they are cleaned by default)
   --version         print version
 ```
 
@@ -218,6 +220,7 @@ yt-dlp --proxy http://127.0.0.1:7890 \
 | `outdir` | Empty means `~/Downloads` |
 | `proxy` | Empty means auto-detect common local proxy ports |
 | `cookies_browser` | Empty means no cookies by default |
+| `auto_clean_temp` | Defaults to `true`: temp fragments are cleaned after every job so the folder keeps only finished files |
 
 ---
 
@@ -236,7 +239,22 @@ and retweets sometimes behave the same way.
 "Browser cookies". Ideally keep that browser from fully exiting during the download.
 
 **A download was interrupted** — Just queue the same job again; it **resumes** from the
-existing fragments. ⚠️ Do not delete the `.part` and `Frag*` files.
+existing fragments. ⚠️ Do not delete the `.part` and `Frag*` files while doing so.
+
+**Why are there `.part` or `Frag*` files in my download folder?**
+
+Normally there should not be any. Temp files are cleaned automatically after every job,
+so the folder keeps **only finished files**.
+(The one exception: a **failed** download deliberately keeps them, so a retry can resume
+instead of starting over.)
+
+If you do end up with a pile of them:
+
+- Want to finish it → queue the same link again and it resumes
+- Don't want it → hit **Clean temp files** above the queue
+
+That button scans the download folder for `*.part`, `*.part-Frag*` and `*.ytdl` and
+removes them — **it never touches your finished files**.
 
 **Speed is unstable** — That is your proxy's bandwidth. Tune concurrency with
 `--fragments` (default 4, max 16).

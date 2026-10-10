@@ -74,6 +74,10 @@
       needFFmpeg: '需 ffmpeg',
       needFFmpegTip: '这个格式是纯视频轨，需要 ffmpeg 合并音轨；当前没有 ffmpeg，下出来会没有声音',
       updateBundled: '当前用的是程序内置的 yt-dlp，无法在线更新。请到 Releases 页面下载最新版程序。',
+      cleanTemp: '清理临时文件',
+      cleanNone: '没有需要清理的临时文件',
+      cleanDone: '已清理 {n} 个临时文件，释放 {size}',
+      cleanedNote: '已自动清理 {n} 个临时文件',
       updateDone: '已是最新版本',
       updateOk: '更新完成',
       updateFail: '更新失败',
@@ -129,6 +133,10 @@
       needFFmpeg: 'needs ffmpeg',
       needFFmpegTip: 'This is a video-only stream and needs ffmpeg to merge the audio track; without ffmpeg the result would have no sound',
       updateBundled: 'This build uses the yt-dlp bundled inside the app and cannot self-update. Grab the latest program from the Releases page.',
+      cleanTemp: 'Clean temp files',
+      cleanNone: 'No temporary files to clean',
+      cleanDone: 'Removed {n} temp file(s), freed {size}',
+      cleanedNote: 'auto-cleaned {n} temp file(s)',
       updateDone: 'Already up to date',
       updateOk: 'Updated',
       updateFail: 'Update failed',
@@ -139,8 +147,12 @@
     || ((navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en');
   if (!I18N[lang]) lang = 'en';
 
-  function t(key) {
-    return (I18N[lang] && I18N[lang][key]) || (I18N.en[key] || key);
+  function t(key, vars) {
+    let s = (I18N[lang] && I18N[lang][key]) || (I18N.en[key] || key);
+    if (vars) {
+      for (const k in vars) s = s.split('{' + k + '}').join(vars[k]);
+    }
+    return s;
   }
 
   function applyI18n() {
@@ -380,6 +392,7 @@
     try {
       const d = await api('/api/download', payload);
       if (!d.ok) { say($('#dlMsg'), d.code || 'error', 'err'); return; }
+      say($('#cleanMsg'), '');
       say($('#dlMsg'), t('dlQueued'), 'info');
       $('#cmdBox').hidden = false;
       $('#cmdText').textContent = equivalentCmd(picked.value, payload);
@@ -408,6 +421,24 @@
   $('#btnClear').addEventListener('click', async () => {
     try { await api('/api/clear', {}); } catch (e) { /* ignore */ }
     await refreshTasks();
+  });
+
+  $('#btnClean').addEventListener('click', async () => {
+    const btn = $('#btnClean');
+    btn.disabled = true;
+    const outdir = ($('#outdir').value || '').trim() || (META && META.outdir) || '';
+    try {
+      const d = await api('/api/clean', { outdir });
+      if (!d.count) {
+        say($('#cleanMsg'), t('cleanNone'), 'info');
+      } else {
+        say($('#cleanMsg'), t('cleanDone', { n: d.count, size: d.sizeText }), 'info');
+      }
+    } catch (e) {
+      say($('#cleanMsg'), String(e.message || e), 'err');
+    } finally {
+      btn.disabled = false;
+    }
   });
 
   function showEmptyQueue() {
@@ -451,6 +482,9 @@
         if (task.eta) meta += `<span>${esc(t('eta'))} ${esc(task.eta)}</span>`;
       }
       if (task.fileSize) meta += `<span>${esc(task.fileSize)}</span>`;
+      if (task.cleanedFiles) {
+        meta += `<span class="ok">${esc(t('cleanedNote', { n: task.cleanedFiles }))}</span>`;
+      }
       if (task.status === 'error' && task.error) {
         meta += `<span class="err">${esc(String(task.error).slice(0, 220))}</span>`;
       }

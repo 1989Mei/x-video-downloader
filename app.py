@@ -22,7 +22,7 @@ from core import config as cfgmod
 from core import ytdlp
 from core.config import free_port
 from core.tasks import TaskManager
-from core.util import reveal
+from core.util import clean_temp_files, human_size, reveal, scan_temp_files
 
 WEB = cfgmod.WEB_DIR
 TOKEN = secrets.token_urlsafe(24)
@@ -173,9 +173,19 @@ class Handler(BaseHTTPRequestHandler):
                 "outdir": cfg["outdir"],
                 "cookies": cfg["cookies_browser"],
                 "fragments": cfg["concurrent_fragments"],
+                "autoClean": cfg["auto_clean_temp"],
                 "platform": sys.platform,
                 "frozen": cfgmod.IS_FROZEN,
             })
+            return
+
+        if path == "/api/scan":
+            outdir = (parse_qs(parsed.query).get("outdir") or [""])[0] \
+                or CTX["cfg"]["outdir"]
+            count, size = scan_temp_files(outdir)
+            self._send(200, {"ok": True, "count": count, "bytes": size,
+                             "sizeText": human_size(size) if size else "",
+                             "outdir": outdir})
             return
 
         if path == "/api/tasks":
@@ -263,6 +273,15 @@ class Handler(BaseHTTPRequestHandler):
                              "detail": "\n".join(tail)})
             return
 
+        if path == "/api/clean":
+            outdir = str(body.get("outdir") or CTX["cfg"]["outdir"]).strip() \
+                or CTX["cfg"]["outdir"]
+            count, size = clean_temp_files(outdir)
+            self._send(200, {"ok": True, "count": count, "bytes": size,
+                             "sizeText": human_size(size) if size else "",
+                             "outdir": outdir})
+            return
+
         if path == "/api/open":
             target = str(body.get("path") or "").strip()
             if target and Path(target).exists():
@@ -328,7 +347,8 @@ def main(argv=None):
     CTX["cfg"] = cfg
     CTX["mgr"] = TaskManager(cmd, proxy=cfg["proxy"],
                              cookies=cfg["cookies_browser"],
-                             fragments=cfg["concurrent_fragments"])
+                             fragments=cfg["concurrent_fragments"],
+                             auto_clean=cfg["auto_clean_temp"])
 
     port = free_port(cfg["port"])
     url = f"http://127.0.0.1:{port}/"

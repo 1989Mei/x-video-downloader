@@ -15,7 +15,7 @@ import uuid
 from pathlib import Path
 
 from . import ytdlp
-from .util import human_size, no_window_kwargs
+from .util import clean_temp_files, human_size, no_window_kwargs
 
 PROG_RE = re.compile(r"^PROG\|(.*?)\|(.*?)\|(.*)$")
 
@@ -30,12 +30,14 @@ STAGE = {
 
 
 class TaskManager:
-    def __init__(self, cmd, proxy="", cookies="", fragments=4, log_limit=300):
+    def __init__(self, cmd, proxy="", cookies="", fragments=4, log_limit=300,
+                 auto_clean=True):
         self.cmd = cmd
         self.proxy = proxy
         self.cookies = cookies
         self.fragments = fragments
         self.log_limit = log_limit
+        self.auto_clean = auto_clean
 
         self._q = queue.Queue()
         self._tasks = {}
@@ -169,6 +171,26 @@ class TaskManager:
             task["stage"] = "error"
             task["error"] = last_err or "download failed"
 
+        # A cancelled job leaves fragments behind. The user walked away from it,
+        # so don't let them pile up. A *failed* job keeps them on purpose: those
+        # fragments are what makes a retry resume instead of start over.
+        if self.auto_clean and task["status"] == "canceled":
+            self._cleanup(task)
+
+    def _cleanup(self, task):
+        """Delete yt-dlp temp files so the output folder keeps only finished files.
+
+        The queue is sequential, so no other job can be mid-download in this
+        directory while a job is wrapping up.
+        """
+        try:
+            count, freed = clean_temp_files(task["outdir"])
+        except Exception:
+            return
+        if count:
+            task["cleanedFiles"] = count
+            task["cleanedBytes"] = freed
+
     def _attempt(self, task, cookies, ev):
         args, selector = ytdlp.build_download_cmd(
             self.cmd, task["url"], task["formatId"], task["needsAudio"],
@@ -264,6 +286,12 @@ class TaskManager:
         if fp and fp.exists():
             task["file"] = str(fp)
             task["fileSize"] = human_size(fp.stat().st_size)
+
+        # Belt and braces: yt-dlp normally tidies up after itself, but if a
+        # fragment survived an odd interruption the folder should still end up
+        # containing nothing but the finished file.
+        if self.auto_clean:
+            self._cleanup(task)
 
 
 def _looks_like_cookie_error(err):

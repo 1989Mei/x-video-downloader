@@ -61,3 +61,66 @@ def no_window_kwargs():
     if sys.platform.startswith("win"):
         return {"creationflags": 0x08000000}  # CREATE_NO_WINDOW
     return {}
+
+
+# --------------------------------------------------------------------------- #
+# Temp-file cleanup
+#
+# yt-dlp leaves these behind while it works:
+#   <name>.part              partially concatenated download
+#   <name>.part-Frag123      individual HLS fragments
+#   <name>.ytdl              resume bookkeeping
+# A finished download cleans up after itself, but a cancelled one does not.
+# --------------------------------------------------------------------------- #
+def is_temp_file(name):
+    n = name.lower()
+    return ".part" in n or n.endswith(".ytdl") or n.endswith(".ytdl.temp")
+
+
+def scan_temp_files(directory):
+    """Return (count, total_bytes) of leftover temp files in `directory`."""
+    d = Path(directory)
+    if not d.is_dir():
+        return 0, 0
+    count = 0
+    total = 0
+    try:
+        entries = list(d.iterdir())
+    except OSError:
+        return 0, 0
+    for f in entries:
+        try:
+            if f.is_file() and is_temp_file(f.name):
+                count += 1
+                total += f.stat().st_size
+        except OSError:
+            continue
+    return count, total
+
+
+def clean_temp_files(directory):
+    """Delete leftover temp files. Returns (deleted_count, bytes_freed).
+
+    Only files matching `is_temp_file` are touched, so finished output is
+    never affected.
+    """
+    d = Path(directory)
+    if not d.is_dir():
+        return 0, 0
+    count = 0
+    freed = 0
+    try:
+        entries = list(d.iterdir())
+    except OSError:
+        return 0, 0
+    for f in entries:
+        try:
+            if not f.is_file() or not is_temp_file(f.name):
+                continue
+            size = f.stat().st_size
+            f.unlink()
+            count += 1
+            freed += size
+        except OSError:
+            continue
+    return count, freed
