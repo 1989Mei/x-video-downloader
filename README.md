@@ -1,6 +1,10 @@
 # X Video Downloader
 
 <p align="center">
+  <b>中文</b> | <a href="README.en.md">English</a>
+</p>
+
+<p align="center">
   <img src="docs/screenshot.png" alt="X Video Downloader — 界面预览" width="780">
 </p>
 
@@ -9,10 +13,6 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg" alt="Platforms">
   <img src="https://img.shields.io/badge/dependencies-yt--dl%20only-success.svg" alt="Dependencies">
-</p>
-
-<p align="center">
-  <b>中文</b> · <a href="#english">English</a>
 </p>
 
 ---
@@ -50,7 +50,7 @@
 | 🍪 **浏览器 Cookie** | 受保护 / 年龄限制的推文也能下载 |
 | 📋 **下载队列** | 一次加多个自动排队，随时可取消 |
 | 🔄 **一键更新 yt-dlp** | X 的接口改动频繁，保持最新才不会失效 |
-| 🌏 **中英双语界面** | 右上角一键切换 |
+| 🌏 **中英双语界面** | 页面右上角一键切换 |
 | 🔒 **本地接口有防护** | 随机 token + Origin 校验，防止其它网页偷偷调用你的下载器 |
 | 📦 **几乎零依赖** | 后端只用 Python 标准库；唯一第三方依赖是 yt-dlp |
 
@@ -62,7 +62,7 @@
 
 ### Windows
 
-双击 `run.bat` 即可。脚本会自动找到 Python 并在缺少 yt-dlp 时安装它。
+双击 `run.bat` 即可。脚本会自动找到 Python；只有在完全找不到 yt-dlp 时才会安装它。
 
 ### macOS / Linux
 
@@ -250,162 +250,6 @@ x-video-downloader/
 - 改动后在 Windows 上实际跑一遍
 
 ---
-
-## License
-
-[MIT](LICENSE) © 2026 1989Mei
-
----
-
-<a id="english"></a>
-
-# X Video Downloader (English)
-
-<p align="center">
-  <img src="docs/screenshot.png" alt="X Video Downloader UI" width="780">
-</p>
-
-> ## ⚠️ Disclaimer
->
-> This tool is intended for **personal backup and research use only**.
->
-> - Downloaded content remains the property of its original authors and platform
-> - You must comply with X's Terms of Service and the laws of your jurisdiction
-> - **Do not** use it to infringe copyright, redistribute commercially, or for any unlawful purpose
->
-> You are solely responsible for how you use this software. The author accepts no
-> liability for misuse. **If you are unsure whether a use case is legitimate, don't do it.**
-
-## What it is
-
-A small local web app that runs on **your own machine**. Paste an X (Twitter) post
-URL, see every available quality, pick one, and download it.
-
-No X login. No API keys. Nothing is sent to a third-party server.
-
-## Features
-
-| | |
-|---|---|
-| 🎛 **Visual quality picker** | Grouped by resolution, with real file sizes and a suggested tier |
-| 🔊 **Automatic A/V merge** | X's HLS streams are video-only; audio is added and merged for you |
-| ⚡ **Concurrent fragments** | 4 parallel fragments by default — measured ~60× faster than a single thread |
-| 🍪 **Browser cookies** | Works with protected and age-restricted posts |
-| 📋 **Download queue** | Queue several jobs; cancel any of them at any time |
-| 🔄 **One-click yt-dlp update** | X changes often — stay current so extraction keeps working |
-| 🌏 **Bilingual UI** | Chinese / English, one click to switch |
-| 🔒 **Guard rails on the local API** | Random token + Origin check so other web pages can't drive it |
-| 📦 **Almost zero dependencies** | Backend is pure standard library; the only dependency is yt-dlp |
-
-## Quick start
-
-**Requirements:** Python 3.9+ and ffmpeg
-
-```bash
-# Windows
-run.bat
-
-# macOS / Linux
-chmod +x run.sh && ./run.sh
-
-# or directly
-pip install -U yt-dlp
-python app.py
-```
-
-A `config.json` is created on first run, and your browser opens automatically.
-
-ffmpeg install: `winget install Gyan.FFmpeg` (Windows) · `brew install ffmpeg` (macOS) ·
-`sudo apt install ffmpeg` (Debian/Ubuntu).
-
-## Usage
-
-1. Paste a post URL and hit **Parse**
-2. Pick a quality (the one marked **Best** is the suggested default)
-3. Choose a **browser cookie** source if the post is protected
-4. Confirm the output folder (it is remembered)
-5. Hit **Add to queue**
-
-Jobs run one at a time. When a job finishes you can jump straight to the file.
-
-## A note on quality options
-
-X serves each video in two flavours, and the size difference is large:
-
-| Type | Description | Relative size |
-|---|---|---|
-| **HLS** | Adaptive-bitrate segments, efficient | small |
-| **HTTP** | Progressive MP4, near-original bitrate | about **4×** |
-
-Same 720p picture: HLS ≈ 1.16 GB, HTTP ≈ 3.99 GB.
-
-**Rule of thumb** — for interviews, talk shows and film, **HLS is indistinguishable and
-saves more than half the space**. Reach for **HTTP** only when the frame contains a lot
-of text or you need to inspect detail frame by frame.
-
-**How "Best" is chosen:** the highest resolution whose estimated total size stays under
-1.5 GB, so short clips suggest 1080p while a 4-hour stream drops to 720p automatically.
-
-## CLI options
-
-```
-python app.py [options]
-
-  --port N          listen port (default 8765, auto-increments if busy)
-  --outdir PATH     download directory (default ~/Downloads)
-  --proxy URL       HTTP proxy, e.g. http://127.0.0.1:7890 (default: auto-detect)
-  --cookies NAME    reuse browser cookies: chrome / edge / firefox / brave / safari
-  --fragments N     concurrent fragments, 1–16 (default 4)
-  --no-browser      do not open the browser on start
-  --version         print version
-```
-
-Environment variables are also supported: `XDL_OUTDIR`, `XDL_PROXY`, `XDL_PORT`,
-`XDL_COOKIES`, `XDL_FRAGMENTS`, `XDL_OPEN_BROWSER`.
-
-Priority: defaults → `config.json` → environment → CLI flags.
-
-## Doing it manually with yt-dlp
-
-```bash
-# list formats
-yt-dlp --proxy http://127.0.0.1:7890 -F "https://x.com/user/status/1234567890"
-
-# download a specific one
-yt-dlp --proxy http://127.0.0.1:7890 \
-  --concurrent-fragments 4 --fragment-retries 25 --retries 25 \
-  -f "hls-506+hls-audio-128000-Audio" \
-  --merge-output-format mp4 \
-  -o "out/%(uploader_id)s_%(id)s.%(ext)s" \
-  "https://x.com/user/status/1234567890"
-```
-
-> ⚠️ **The classic gotcha:** on X, `hls-*` formats are **video-only**. You must append an
-> audio format with `+`, otherwise the result has no sound. `http-*` formats already
-> include audio.
-
-## FAQ
-
-**Parse fails or hangs** — X needs a proxy on some networks. The startup log prints the
-detected proxy; pass `--proxy` if detection misses.
-
-**The video has no sound** — You picked a video-only format and the audio merge failed,
-usually because **ffmpeg is missing**. Check the `ffmpeg` line in the startup log.
-
-**"No video could be found"** — This post has no video (text or image only).
-
-**Protected / age-restricted posts fail** — Pick the browser you are logged into under
-"Browser cookies".
-
-**A download was interrupted** — Just queue the same job again; it **resumes** from the
-existing fragments. Do not delete the `.part` and `Frag*` files.
-
-**Why does a local server need a token?** — So that other web pages cannot silently POST
-to `127.0.0.1` and make your machine download files. The token is random per run and is
-only injected into the served page.
-
-**Platform support** — Windows is well tested. macOS / Linux code paths exist but are
-**not verified on real hardware** yet — please open an issue if something breaks.
 
 ## License
 
