@@ -322,15 +322,20 @@ class Handler(BaseHTTPRequestHandler):
 
 # --------------------------------------------------------------------------- #
 def main(argv=None):
+    try:
+        # line_buffering matters: when the output is piped or redirected Python
+        # block-buffers by default, so the startup banner would sit unseen until
+        # the 8 KB buffer fills (i.e. never). It also matters for the yt-dlp role
+        # below, where the parent reads progress line by line.
+        sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
+        sys.stderr.reconfigure(encoding="utf-8", line_buffering=True)
+    except Exception:
+        pass
+
     # A frozen build bundles yt-dlp as a module and re-invokes itself to act as
     # the yt-dlp CLI. This must happen before any output or server startup.
     if len(sys.argv) > 1 and sys.argv[1] == ytdlp.SELF_YTDLP_FLAG:
         return ytdlp.run_as_ytdlp(sys.argv[2:])
-
-    try:
-        sys.stdout.reconfigure(encoding="utf-8")
-    except Exception:
-        pass
 
     cfg = cfgmod.load(argv)
     if cfgmod.ensure_config_file():

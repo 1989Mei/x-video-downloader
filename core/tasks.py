@@ -63,6 +63,8 @@ class TaskManager:
             "percent": "0%",
             "speed": "",
             "eta": "",
+            "phase": 0,          # which stream is being fetched (video, then audio)
+            "phaseTotal": 1,
             "file": "",
             "fileSize": "",
             "error": "",
@@ -198,6 +200,12 @@ class TaskManager:
             proxy=self.proxy, cookies=cookies, fragments=self.fragments,
         )
         task["selector"] = selector
+        # A selector like "hls-506+hls-audio-128000-Audio" means two separate
+        # streams are fetched one after another. Each one reports its own 0-100%
+        # progress, so the UI needs to say which pass it is on — otherwise the
+        # bar visibly jumps backwards when the audio pass starts.
+        task["phaseTotal"] = selector.count("+") + 1
+        task["phase"] = 0
 
         try:
             Path(task["outdir"]).mkdir(parents=True, exist_ok=True)
@@ -236,10 +244,13 @@ class TaskManager:
                     continue
 
                 if "Destination:" in line:
+                    task["phase"] = min(task.get("phase", 0) + 1,
+                                        task.get("phaseTotal") or 1)
                     task["file"] = line.split("Destination:", 1)[1].strip().strip('"')
                 elif "[Merger]" in line or "Merging formats" in line:
                     task["stage"] = "merging"
                     task["percent"] = "100%"
+                    task["phase"] = task.get("phaseTotal") or 1
                     mm = re.search(r'"([^"]+\.mp4)"', line)
                     if mm:
                         task["file"] = mm.group(1)

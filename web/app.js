@@ -57,11 +57,13 @@
       statusQueued: '排队中',
       statusRunning: '下载中',
       statusMerging: '合并中',
+      statusFinalizing: '处理中',
       statusDone: '已完成',
       statusError: '失败',
       statusCanceled: '已取消',
       speed: '速度',
       eta: '剩余',
+      phaseOf: '第 {a}/{b} 段',
       parseFailTitle: '解析失败：',
       dlQueued: '已加入队列，开始后会依次下载。',
       errNoUrl: '请先粘贴推文链接',
@@ -116,11 +118,13 @@
       statusQueued: 'Queued',
       statusRunning: 'Downloading',
       statusMerging: 'Merging',
+      statusFinalizing: 'Finalizing',
       statusDone: 'Done',
       statusError: 'Failed',
       statusCanceled: 'Canceled',
       speed: 'Speed',
       eta: 'ETA',
+      phaseOf: 'pass {a}/{b}',
       parseFailTitle: 'Could not parse: ',
       dlQueued: 'Added to the queue. Downloads run one at a time.',
       errNoUrl: 'Please paste a post URL first',
@@ -454,6 +458,10 @@
     if (task.status === 'canceled') return 'statusCanceled';
     if (task.stage === 'merging') return 'statusMerging';
     if (task.status === 'queued') return 'statusQueued';
+    // yt-dlp prints nothing while it stitches HLS fragments together, so the
+    // job can sit at 100% for a while. Say so rather than looking stuck.
+    const pct = parseFloat(String(task.percent || '0').replace('%', '')) || 0;
+    if (pct >= 100) return 'statusFinalizing';
     return 'statusRunning';
   }
 
@@ -478,6 +486,11 @@
 
       let meta = '';
       if (task.status === 'running') {
+        // Two streams (video then audio) each report their own 0-100%, so say
+        // which pass we are on — otherwise the bar looks like it went backwards.
+        if (task.phaseTotal > 1) {
+          meta += `<span>${esc(t('phaseOf', { a: task.phase || 1, b: task.phaseTotal }))}</span>`;
+        }
         if (task.speed) meta += `<span>${esc(t('speed'))} ${esc(task.speed)}</span>`;
         if (task.eta) meta += `<span>${esc(t('eta'))} ${esc(task.eta)}</span>`;
       }
