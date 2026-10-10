@@ -48,7 +48,8 @@ class TaskManager:
         self._worker.start()
 
     # ---------------- public API ---------------- #
-    def submit(self, url, fmt_id, needs_audio, audio_id, outdir, title=""):
+    def submit(self, url, fmt_id, needs_audio, audio_id, outdir, title="",
+               audio_only=False, stem=""):
         tid = uuid.uuid4().hex[:12]
         task = {
             "id": tid,
@@ -57,6 +58,8 @@ class TaskManager:
             "formatId": fmt_id,
             "needsAudio": needs_audio,
             "audioId": audio_id,
+            "audioOnly": audio_only,
+            "stem": stem,
             "outdir": outdir,
             "status": "queued",
             "stage": "queued",
@@ -122,20 +125,34 @@ class TaskManager:
         return {k: v for k, v in t.items() if not k.startswith("_")}
 
     def _loop(self):
+        """Consume the queue forever.
+
+        Deliberately catches BaseException: this thread dying would silently
+        stall every job still waiting in the queue, which is far worse than
+        swallowing an odd error.
+        """
         while True:
-            tid = self._q.get()
+            task = None
             try:
+                tid = self._q.get()
                 with self._lock:
                     task = self._tasks.get(tid)
                 if task and task["status"] == "queued":
                     self._run(task)
-            except Exception as e:  # never let the worker die
-                if task:
-                    task["status"] = "error"
-                    task["stage"] = "error"
-                    task["error"] = f"{type(e).__name__}: {e}"
+            except BaseException as e:      # noqa: BLE001 - see docstring
+                try:
+                    if task is not None and task.get("status") not in (
+                            "done", "error", "canceled"):
+                        task["status"] = "error"
+                        task["stage"] = "error"
+                        task["error"] = f"{type(e).__name__}: {e}"
+                except Exception:
+                    pass
             finally:
-                self._q.task_done()
+                try:
+                    self._q.task_done()
+                except Exception:
+                    pass
 
     def _run(self, task):
         tid = task["id"]
@@ -179,16 +196,31 @@ class TaskManager:
         if self.auto_clean and task["status"] == "canceled":
             self._cleanup(task)
 
-    def _cleanup(self, task):
+    def _cleanup(self, task, timeout=20):
         """Delete yt-dlp temp files so the output folder keeps only finished files.
 
         The queue is sequential, so no other job can be mid-download in this
         directory while a job is wrapping up.
+
+        Runs in a helper thread with a timeout: a filesystem that stalls on
+        unlink (locked file, antivirus, network drive) must never wedge the
+        worker and leave every later job stuck in the queue.
         """
-        try:
-            count, freed = clean_temp_files(task["outdir"])
-        except Exception:
+        box = {}
+
+        def work():
+            try:
+                box["r"] = clean_temp_files(task["outdir"])
+            except Exception:
+                box["r"] = (0, 0)
+
+        th = threading.Thread(target=work, daemon=True)
+        th.start()
+        th.join(timeout)
+        if th.is_alive():
             return
+
+        count, freed = box.get("r", (0, 0))
         if count:
             task["cleanedFiles"] = count
             task["cleanedBytes"] = freed
@@ -198,6 +230,8 @@ class TaskManager:
             self.cmd, task["url"], task["formatId"], task["needsAudio"],
             task["audioId"], task["outdir"],
             proxy=self.proxy, cookies=cookies, fragments=self.fragments,
+            audio_only=task.get("audioOnly", False),
+            stem=task.get("stem", ""),
         )
         task["selector"] = selector
         # A selector like "hls-506+hls-audio-128000-Audio" means two separate
@@ -257,7 +291,10 @@ class TaskManager:
                     elif " into " in line:
                         task["file"] = line.split(" into ", 1)[1].strip().strip('"')
                 elif "has already been downloaded" in line:
+                    # yt-dlp found the target filename already on disk and did
+                    # nothing. That must not be reported as a fresh download.
                     task["percent"] = "100%"
+                    task["skippedExisting"] = True
         finally:
             try:
                 rc = proc.wait(timeout=600)

@@ -1,9 +1,23 @@
 """Cross-platform helpers (kept dependency-free)."""
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
+
+_UNSAFE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def safe_stem(name):
+    """Turn a caller-supplied string into a safe filename stem.
+
+    Strips anything that is illegal on Windows or could escape the output
+    directory, and collapses whitespace.
+    """
+    s = _UNSAFE.sub("_", str(name or ""))
+    s = re.sub(r"\s+", " ", s).strip(" .")
+    return s[:120] or "download"
 
 
 def human_size(n):

@@ -246,6 +246,8 @@ class Handler(BaseHTTPRequestHandler):
                 audio_id=body.get("audioId"),
                 outdir=outdir,
                 title=str(body.get("title") or ""),
+                audio_only=bool(body.get("audioOnly")),
+                stem=str(body.get("stem") or ""),
             )
             self._send(200, {"ok": True, "taskId": tid})
             return

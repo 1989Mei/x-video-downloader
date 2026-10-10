@@ -241,6 +241,30 @@ and retweets sometimes behave the same way.
 **A download was interrupted** — Just queue the same job again; it **resumes** from the
 existing fragments. ⚠️ Do not delete the `.part` and `Frag*` files while doing so.
 
+**How are files named?**
+
+```
+<uploader>_<media id>_<quality>.<ext>
+```
+
+For example:
+
+```
+jpmorgan_2107839924783206400_720p-hls.mp4
+jpmorgan_2107839924783206400_1080p-http.mp4
+jpmorgan_2107839924783206400_audio.mp4
+```
+
+The quality is part of the name, so **different qualities of the same post never
+overwrite each other** — you can grab 720p, 1080p and audio-only side by side.
+
+**Downloading the same post at the same quality twice** finds the file already
+present, so the job is **skipped and reported as such** ("a file with this name
+already existed"). It never pretends to have downloaded something new. Delete the
+old file first if you want a fresh copy.
+
+---
+
 **Why are there `.part` or `Frag*` files in my download folder?**
 
 Normally there should not be any. Temp files are cleaned automatically after every job,

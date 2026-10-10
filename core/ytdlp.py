@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from . import config
-from .util import no_window_kwargs
+from .util import no_window_kwargs, safe_stem
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -246,6 +246,7 @@ def summarize(info, has_ffmpeg=True):
             proto = "HLS" if str(f.get("protocol") or "").startswith("m3u8") else "HTTP"
             options.append({
                 "id": f.get("format_id"),
+                "height": height,
                 "protocol": proto,
                 "efficient": proto == "HLS",
                 "needsAudio": needs_audio,
@@ -300,18 +301,33 @@ def summarize(info, has_ffmpeg=True):
 # Download command
 # --------------------------------------------------------------------------- #
 def build_download_cmd(cmd, url, fmt_id, needs_audio, audio_id, outdir,
-                       proxy="", cookies="", fragments=4):
+                       proxy="", cookies="", fragments=4, audio_only=False,
+                       stem=""):
     selector = f"{fmt_id}+{audio_id}" if (needs_audio and audio_id) else fmt_id
     args = list(cmd) + ["--no-warnings", "--newline",
                         "--progress-template", PROGRESS_TEMPLATE]
     args += _net_flags(proxy, cookies)
+
+    # The caller supplies a stem that already names the quality, so two
+    # qualities of the same post never collide:
+    #     Reuters_123_720p-hls.mp4   vs   Reuters_123_1080p-hls.mp4
+    # Without it we fall back to yt-dlp's own template. Note X serves audio-only
+    # streams as .mp4 too, so audio needs its own suffix or it would shadow the
+    # video file and make yt-dlp silently skip a later video download.
+    if stem:
+        template = safe_stem(stem) + ".%(ext)s"
+    elif audio_only:
+        template = "%(uploader_id)s_%(id)s_audio.%(ext)s"
+    else:
+        template = "%(uploader_id)s_%(id)s.%(ext)s"
+
     args += [
         "--concurrent-fragments", str(fragments),
         "--fragment-retries", "25",
         "--retries", "25",
         "-f", selector,
         "--merge-output-format", "mp4",
-        "-o", os.path.join(outdir, "%(uploader_id)s_%(id)s.%(ext)s"),
+        "-o", os.path.join(outdir, template),
         url,
     ]
     return args, selector

@@ -80,6 +80,7 @@
       cleanNone: '没有需要清理的临时文件',
       cleanDone: '已清理 {n} 个临时文件，释放 {size}',
       cleanedNote: '已自动清理 {n} 个临时文件',
+      skippedExisting: '同名文件已存在，未重新下载（想换画质请先删掉旧文件）',
       updateDone: '已是最新版本',
       updateOk: '更新完成',
       updateFail: '更新失败',
@@ -141,6 +142,7 @@
       cleanNone: 'No temporary files to clean',
       cleanDone: 'Removed {n} temp file(s), freed {size}',
       cleanedNote: 'auto-cleaned {n} temp file(s)',
+      skippedExisting: 'A file with this name already existed — nothing was downloaded (delete the old file to fetch a different quality)',
       updateDone: 'Already up to date',
       updateOk: 'Updated',
       updateFail: 'Update failed',
@@ -235,6 +237,7 @@
   let META = null;
   let LAST_TASKS = [];
   let pollTimer = null;
+  let RENDERED_ID = null;   // which video the quality list was built for
 
   /* ------------------------------------------------------------------ */
   /* boot                                                                */
@@ -320,7 +323,15 @@
 
   function renderQuality(d) {
     const box = $('#groups');
-    const picked = (box.querySelector('input[name=fmt]:checked') || {}).value;
+    // Keep the current selection only when re-rendering the _same_ video (e.g.
+    // after a language switch). Carrying it over to a different video was a
+    // real bug: X always calls its audio stream `hls-audio-128000-Audio`, so
+    // once "audio only" had been picked it stayed picked for every later video
+    // and the user kept getting audio-only files without realising.
+    const sameVideo = !!(d.id && d.id === RENDERED_ID);
+    const picked = sameVideo
+      ? (box.querySelector('input[name=fmt]:checked') || {}).value
+      : null;
     box.innerHTML = '';
 
     d.groups.forEach(g => {
@@ -345,6 +356,7 @@
         lab.innerHTML =
           `<input type="radio" name="fmt" value="${esc(o.id)}"` +
           ` data-needs="${o.needsAudio ? 1 : 0}" data-audio="${esc(o.audioId || '')}"` +
+          ` data-height="${esc(o.height || '')}" data-proto="${esc(o.protocol || '')}"` +
           `${locked ? ' disabled' : ''}${checked}>` +
           `<span class="proto">${esc(o.protocol)} · ${esc(o.efficient ? t('efficient') : t('original'))}` +
           `<small>${esc(o.needsAudio ? t('needsAudio') : t('hasAudio'))}</small></span>` +
@@ -362,18 +374,41 @@
       const lab = document.createElement('label');
       lab.className = 'opt';
       lab.innerHTML =
-        `<input type="radio" name="fmt" value="${esc(d.audioOnly.id)}" data-needs="0" data-audio="">` +
+        `<input type="radio" name="fmt" value="${esc(d.audioOnly.id)}" data-needs="0" data-audio="" data-audioonly="1" data-proto="audio">` +
         `<span class="proto">${esc(t('audioOnly'))}<small>${esc(t('audioOnlyHint'))}</small></span>` +
         `<span class="size">${esc(size(d.audioOnly.size))}</span>`;
       wrap.appendChild(lab);
       box.appendChild(wrap);
     }
+
+    RENDERED_ID = d.id || null;
   }
 
   /* ------------------------------------------------------------------ */
   /* download                                                            */
   /* ------------------------------------------------------------------ */
   $('#btnDownload').addEventListener('click', startDownload);
+
+  /* A filename stem that encodes which quality this is, so two qualities of the
+     same post never collide:
+        Reuters_123_720p-hls.mp4     vs   Reuters_123_1080p-http.mp4
+        Reuters_123_audio.mp4        vs   Reuters_123_720p-hls.mp4            */
+  function buildStem(d, radio) {
+    const clean = s => String(s || '')
+      .replace(/[^\w\u4e00-\u9fa5.-]+/g, '_')
+      .replace(/^[_.]+|[_.]+$/g, '');
+    const who = clean(d.uploaderId || d.uploader) || 'video';
+    const id = clean(d.id);
+    let tag;
+    if (radio.dataset.audioonly === '1') {
+      tag = 'audio';
+    } else {
+      const h = radio.dataset.height ? radio.dataset.height + 'p' : '';
+      const p = String(radio.dataset.proto || '').toLowerCase();
+      tag = [h, p].filter(Boolean).join('-') || 'video';
+    }
+    return [who, id, tag].filter(Boolean).join('_');
+  }
 
   async function startDownload() {
     const picked = document.querySelector('input[name=fmt]:checked');
@@ -384,12 +419,15 @@
     store.outdir = outdir;
     store.cookies = cookies;
 
+    const stem = buildStem(INFO, picked);
     const payload = {
       url: INFO.url,
       title: INFO.title,
       formatId: picked.value,
       needsAudio: picked.dataset.needs === '1',
       audioId: picked.dataset.audio || null,
+      audioOnly: picked.dataset.audioonly === '1',
+      stem,
       outdir,
     };
 
@@ -412,10 +450,11 @@
     const ck = $('#cookies').value;
     const cookieFlag = ck ? ` --cookies-from-browser ${ck}` : '';
     const out = (p.outdir || '.').replace(/[\\/]+$/, '');
+    const name = p.stem ? `${p.stem}.%(ext)s` : '%(uploader_id)s_%(id)s.%(ext)s';
     return `yt-dlp --proxy ${proxy}${cookieFlag} \\\n` +
       `  --concurrent-fragments 4 --fragment-retries 25 --retries 25 \\\n` +
       `  -f "${sel}" --merge-output-format mp4 \\\n` +
-      `  -o "${out}/%(uploader_id)s_%(id)s.%(ext)s" \\\n` +
+      `  -o "${out}/${name}" \\\n` +
       `  "${p.url}"`;
   }
 
@@ -495,6 +534,9 @@
         if (task.eta) meta += `<span>${esc(t('eta'))} ${esc(task.eta)}</span>`;
       }
       if (task.fileSize) meta += `<span>${esc(task.fileSize)}</span>`;
+      if (task.skippedExisting) {
+        meta += `<span class="err">${esc(t('skippedExisting'))}</span>`;
+      }
       if (task.cleanedFiles) {
         meta += `<span class="ok">${esc(t('cleanedNote', { n: task.cleanedFiles }))}</span>`;
       }
