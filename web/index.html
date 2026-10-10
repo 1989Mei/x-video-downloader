@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="xdl-token" content="__XDL_TOKEN__">
+<title>X Video Downloader</title>
+<link rel="stylesheet" href="/web/style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="htop">
+      <div>
+        <h1 data-i18n="title"></h1>
+        <p class="sub" data-i18n="subtitle"></p>
+      </div>
+      <div class="tools">
+        <span class="ver" id="verBox">…</span>
+        <button class="sm" id="btnUpdate" data-i18n="checkUpdate"></button>
+        <button class="sm" id="btnLang">EN</button>
+      </div>
+    </div>
+    <div class="disclaimer" data-i18n="disclaimer"></div>
+  </header>
+
+  <!-- URL input -->
+  <section class="card">
+    <label class="fl" for="url" data-i18n="urlLabel"></label>
+    <div class="row">
+      <input type="text" id="url" autocomplete="off" spellcheck="false"
+             data-i18n-ph="urlPlaceholder">
+      <button id="btnParse" class="primary" data-i18n="parse"></button>
+    </div>
+    <div class="msg" id="parseMsg"></div>
+  </section>
+
+  <!-- Video info -->
+  <section class="card" id="infoCard" hidden>
+    <div class="vinfo">
+      <img class="thumb" id="thumb" alt="">
+      <div class="vmeta">
+        <div class="vtitle" id="vtitle"></div>
+        <div class="vsub" id="vsub"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quality -->
+  <section class="card" id="qualityCard" hidden>
+    <h2 data-i18n="chooseQuality"></h2>
+    <div id="groups"></div>
+
+    <div class="optrow">
+      <span class="fl" data-i18n="cookies"></span>
+      <select id="cookies">
+        <option value="" data-i18n="cookiesOff"></option>
+        <option value="chrome">Chrome</option>
+        <option value="edge">Edge</option>
+        <option value="firefox">Firefox</option>
+        <option value="brave">Brave</option>
+        <option value="safari">Safari</option>
+      </select>
+      <span class="fl" data-i18n="saveTo"></span>
+      <input type="text" id="outdir" autocomplete="off" spellcheck="false">
+    </div>
+
+    <button id="btnDownload" class="primary" data-i18n="startDownload"></button>
+    <div class="msg" id="dlMsg"></div>
+
+    <details id="cmdBox" hidden>
+      <summary data-i18n="cmdEquivalent"></summary>
+      <pre id="cmdText"></pre>
+    </details>
+  </section>
+
+  <!-- Queue -->
+  <section class="card">
+    <div class="qhead">
+      <h2 data-i18n="queue"></h2>
+      <button class="sm ghost" id="btnClear" data-i18n="clearDone"></button>
+    </div>
+    <div id="tasks"></div>
+  </section>
+
+</div>
+<script src="/web/app.js"></script>
+</body>
+</html>

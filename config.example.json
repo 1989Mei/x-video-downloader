@@ -1,0 +1,8 @@
+{
+  "outdir": "",
+  "proxy": "",
+  "port": 8765,
+  "cookies_browser": "",
+  "concurrent_fragments": 4,
+  "open_browser": true
+}
