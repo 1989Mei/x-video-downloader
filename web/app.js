@@ -70,6 +70,10 @@
       errNoTask: '任务不存在',
       noVideo: '这条推文里没有视频',
       hintNoCookie: '受保护或年龄限制的推文，需要在「浏览器 Cookie」里选择你已登录的浏览器。',
+      noFFmpeg: '未检测到 <code>ffmpeg</code> —— 当前只能下载「自带音频」的格式，体积约为高效格式的 2–4 倍。装好 ffmpeg 后重启本程序，即可解锁更省空间的格式。',
+      needFFmpeg: '需 ffmpeg',
+      needFFmpegTip: '这个格式是纯视频轨，需要 ffmpeg 合并音轨；当前没有 ffmpeg，下出来会没有声音',
+      updateBundled: '当前用的是程序内置的 yt-dlp，无法在线更新。请到 Releases 页面下载最新版程序。',
       updateDone: '已是最新版本',
       updateOk: '更新完成',
       updateFail: '更新失败',
@@ -121,6 +125,10 @@
       errNoTask: 'Task not found',
       noVideo: 'This post contains no video',
       hintNoCookie: 'For protected or age-restricted posts, pick the browser you are logged into under "Browser cookies".',
+      noFFmpeg: 'No <code>ffmpeg</code> found — for now only formats that already carry audio can be used, and those are roughly 2–4× larger. Install ffmpeg and restart the app to unlock the more efficient formats.',
+      needFFmpeg: 'needs ffmpeg',
+      needFFmpegTip: 'This is a video-only stream and needs ffmpeg to merge the audio track; without ffmpeg the result would have no sound',
+      updateBundled: 'This build uses the yt-dlp bundled inside the app and cannot self-update. Grab the latest program from the Releases page.',
       updateDone: 'Already up to date',
       updateOk: 'Updated',
       updateFail: 'Update failed',
@@ -144,6 +152,18 @@
     if (INFO) renderQuality(INFO);
     renderTasks(LAST_TASKS);
     if (!LAST_TASKS.length) showEmptyQueue();
+    renderEnvNotice();
+  }
+
+  /* Environment warnings (e.g. ffmpeg missing) */
+  function renderEnvNotice() {
+    const n = $('#envNotice');
+    if (!META) { n.hidden = true; return; }
+    const parts = [];
+    if (!META.ffmpeg) parts.push(t('noFFmpeg'));
+    if (!parts.length) { n.hidden = true; return; }
+    n.innerHTML = parts.join('<br>');   // only our own i18n strings, no user data
+    n.hidden = false;
   }
 
   /* ------------------------------------------------------------------ */
@@ -212,11 +232,12 @@
 
     if (META) {
       $('#verBox').textContent = 'yt-dlp ' + (META.ytdlpVersion || '?');
-      if (!META.ffmpeg) {
-        $('#verBox').title = 'ffmpeg not found';
-        $('#verBox').style.color = 'var(--er)';
-      }
+      $('#verBox').title = 'yt-dlp ' + (META.ytdlpVersion || '?')
+        + (META.ytdlpSource ? ' · ' + META.ytdlpSource : '')
+        + (META.ffmpeg ? '' : ' · ffmpeg NOT found');
+      if (!META.ffmpeg) $('#verBox').style.color = 'var(--er)';
     }
+    renderEnvNotice();
 
     $('#outdir').value = store.outdir || (META ? META.outdir : '');
     $('#cookies').value = store.cookies || (META ? META.cookies : '') || '';
@@ -297,17 +318,21 @@
       wrap.appendChild(head);
 
       g.options.forEach(o => {
+        const locked = o.needsFFmpeg === true;   // needs ffmpeg, which is missing
         const lab = document.createElement('label');
-        lab.className = 'opt';
+        lab.className = 'opt' + (locked ? ' locked' : '');
+        if (locked) lab.title = t('needFFmpegTip');
         const checked = (picked ? o.id === picked : o.id === d.recommended) ? ' checked' : '';
-        const badge = o.id === d.recommended
+        const badge = (o.id === d.recommended && !locked)
           ? `<span class="badge">${esc(t('rec'))}</span>` : '';
+        const warn = locked ? `<span class="warnbadge">${esc(t('needFFmpeg'))}</span>` : '';
         lab.innerHTML =
           `<input type="radio" name="fmt" value="${esc(o.id)}"` +
-          ` data-needs="${o.needsAudio ? 1 : 0}" data-audio="${esc(o.audioId || '')}"${checked}>` +
+          ` data-needs="${o.needsAudio ? 1 : 0}" data-audio="${esc(o.audioId || '')}"` +
+          `${locked ? ' disabled' : ''}${checked}>` +
           `<span class="proto">${esc(o.protocol)} · ${esc(o.efficient ? t('efficient') : t('original'))}` +
           `<small>${esc(o.needsAudio ? t('needsAudio') : t('hasAudio'))}</small></span>` +
-          `<span class="size">${esc(size(o.size))}</span>${badge}`;
+          `<span class="size">${esc(size(o.size))}</span>${warn}${badge}`;
         wrap.appendChild(lab);
       });
       box.appendChild(wrap);
@@ -490,7 +515,11 @@
     try {
       const d = await api('/api/update', {});
       $('#verBox').textContent = 'yt-dlp ' + (d.version || '?');
-      say($('#parseMsg'), d.ok ? t('updateOk') : t('updateFail'), d.ok ? 'info' : 'err');
+      if (d.code === 'BUNDLED') {
+        say($('#parseMsg'), t('updateBundled'), 'info');
+      } else {
+        say($('#parseMsg'), d.ok ? t('updateOk') : t('updateFail'), d.ok ? 'info' : 'err');
+      }
     } catch (e) {
       say($('#parseMsg'), String(e.message || e), 'err');
     } finally {

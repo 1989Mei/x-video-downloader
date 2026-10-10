@@ -8,10 +8,44 @@ import argparse
 import json
 import os
 import socket
+import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-CONFIG_PATH = ROOT / "config.json"
+# --------------------------------------------------------------------------- #
+# Paths
+#
+# In source mode the project root holds everything. In a PyInstaller build the
+# bundled resources live in a temporary extraction dir (sys._MEIPASS), while
+# config.json and any user binaries belong next to the executable.
+# --------------------------------------------------------------------------- #
+IS_FROZEN = bool(getattr(sys, "frozen", False))
+
+_SOURCE_ROOT = Path(__file__).resolve().parent.parent
+
+RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", _SOURCE_ROOT))
+
+if IS_FROZEN:
+    try:
+        DATA_DIR = Path(sys.executable).resolve().parent
+        _probe = DATA_DIR / ".write-test"
+        _probe.write_text("", encoding="utf-8")
+        _probe.unlink()
+    except Exception:
+        # e.g. the exe sits somewhere read-only — fall back to a per-user dir
+        if sys.platform == "win32":
+            base = Path(os.environ.get("LOCALAPPDATA") or Path.home())
+        elif sys.platform == "darwin":
+            base = Path.home() / "Library" / "Application Support"
+        else:
+            base = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local/share"))
+        DATA_DIR = base / "x-video-downloader"
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+else:
+    DATA_DIR = _SOURCE_ROOT
+
+WEB_DIR = RESOURCE_DIR / "web"
+BIN_DIR = DATA_DIR / "bin"
+CONFIG_PATH = DATA_DIR / "config.json"
 
 DEFAULTS = {
     "outdir": "",                 # empty -> ~/Downloads

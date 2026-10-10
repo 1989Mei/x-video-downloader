@@ -24,8 +24,7 @@ from core.config import free_port
 from core.tasks import TaskManager
 from core.util import reveal
 
-BASE = Path(__file__).resolve().parent
-WEB = BASE / "web"
+WEB = cfgmod.WEB_DIR
 TOKEN = secrets.token_urlsafe(24)
 CTX = {}
 
@@ -75,7 +74,7 @@ def banner(cfg):
     CTX["ffmpeg"] = ffmpeg
 
     print(f"\n  yt-dlp     : {CTX['ytdlpVersion']}")
-    print(f"  yt-dlp bin : {' '.join(ytdlp_cmd)}")
+    print(f"  yt-dlp from: {ytdlp.describe(ytdlp_cmd)}")
     print(f"  ffmpeg     : {ffmpeg or 'NOT FOUND'}")
     print(f"  output dir : {cfg['outdir']}")
     print(f"  proxy      : {cfg['proxy'] or 'not set (will try a direct connection)'}")
@@ -167,12 +166,15 @@ class Handler(BaseHTTPRequestHandler):
                 "ok": True,
                 "version": __version__,
                 "ytdlpVersion": CTX.get("ytdlpVersion", "?"),
+                "ytdlpSource": ytdlp.describe(CTX.get("ytdlp")),
+                "ytdlpBundled": ytdlp.is_self_contained(CTX.get("ytdlp")),
                 "ffmpeg": bool(CTX.get("ffmpeg")),
                 "proxy": cfg["proxy"],
                 "outdir": cfg["outdir"],
                 "cookies": cfg["cookies_browser"],
                 "fragments": cfg["concurrent_fragments"],
                 "platform": sys.platform,
+                "frozen": cfgmod.IS_FROZEN,
             })
             return
 
@@ -211,7 +213,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 info = ytdlp.probe(CTX["ytdlp"], url, proxy=cfg["proxy"], cookies=cookies)
-                data = ytdlp.summarize(info)
+                data = ytdlp.summarize(info, has_ffmpeg=bool(CTX.get("ffmpeg")))
                 data["url"] = url
                 self._send(200, {"ok": True, **data})
             except ytdlp.YtdlpError as e:
@@ -250,6 +252,10 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/update":
+            if ytdlp.is_self_contained(CTX.get("ytdlp")):
+                self._send(200, {"ok": False, "code": "BUNDLED",
+                                 "version": CTX.get("ytdlpVersion", "?")})
+                return
             ok, message = ytdlp.update(CTX["ytdlp"])
             CTX["ytdlpVersion"] = ytdlp.version(CTX["ytdlp"])
             tail = [l for l in (message or "").splitlines() if l.strip()][-4:]
@@ -297,6 +303,11 @@ class Handler(BaseHTTPRequestHandler):
 
 # --------------------------------------------------------------------------- #
 def main(argv=None):
+    # A frozen build bundles yt-dlp as a module and re-invokes itself to act as
+    # the yt-dlp CLI. This must happen before any output or server startup.
+    if len(sys.argv) > 1 and sys.argv[1] == ytdlp.SELF_YTDLP_FLAG:
+        return ytdlp.run_as_ytdlp(sys.argv[2:])
+
     try:
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:

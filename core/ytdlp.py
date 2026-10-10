@@ -8,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from . import config
 from .util import no_window_kwargs
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -15,6 +16,9 @@ ROOT = Path(__file__).resolve().parent.parent
 PROGRESS_TEMPLATE = (
     "PROG|%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s"
 )
+
+# Argument that makes the frozen executable behave as the yt-dlp CLI.
+SELF_YTDLP_FLAG = "--run-ytdlp"
 
 
 class YtdlpError(RuntimeError):
@@ -27,32 +31,83 @@ class YtdlpError(RuntimeError):
 def find_ytdlp():
     """Return a command list for yt-dlp, or None.
 
-    Order: project-local venv -> PATH -> `python -m yt_dlp`.
+    Order:
+      1. a standalone binary the user dropped into <data>/bin (updatable)
+      2. a project-local venv            (source mode)
+      3. yt-dlp on PATH
+      4. `python -m yt_dlp`              (source mode)
+      5. the bundled module, via the frozen app re-invoking itself
     """
-    for rel in (
-        Path(".venv/Scripts/yt-dlp.exe"),
-        Path(".venv/bin/yt-dlp"),
-        Path("venv/Scripts/yt-dlp.exe"),
-        Path("venv/bin/yt-dlp"),
-    ):
-        p = ROOT / rel
+    for name in ("yt-dlp.exe", "yt-dlp"):
+        p = config.BIN_DIR / name
         if p.exists():
             return [str(p)]
+
+    if not config.IS_FROZEN:
+        for rel in (
+            Path(".venv/Scripts/yt-dlp.exe"),
+            Path(".venv/bin/yt-dlp"),
+            Path("venv/Scripts/yt-dlp.exe"),
+            Path("venv/bin/yt-dlp"),
+        ):
+            p = ROOT / rel
+            if p.exists():
+                return [str(p)]
 
     found = shutil.which("yt-dlp")
     if found:
         return [found]
 
+    if not config.IS_FROZEN:
+        try:
+            if importlib.util.find_spec("yt_dlp") is not None:
+                return [sys.executable, "-m", "yt_dlp"]
+        except Exception:
+            pass
+
+    # Frozen build: the module is bundled, so run ourselves as the yt-dlp CLI.
     try:
-        if importlib.util.find_spec("yt_dlp") is not None:
-            return [sys.executable, "-m", "yt_dlp"]
+        import yt_dlp  # noqa: F401
+        return [sys.executable, SELF_YTDLP_FLAG]
     except Exception:
         pass
 
     return None
 
 
+def run_as_ytdlp(argv):
+    """Entry point for `app --run-ytdlp ...` — delegate straight to yt-dlp."""
+    import yt_dlp
+    try:
+        return yt_dlp.main(argv if argv else None)
+    except SystemExit as e:
+        return int(e.code or 0)
+
+
+def describe(cmd):
+    """Human-readable description of where yt-dlp came from."""
+    if not cmd:
+        return "not found"
+    if SELF_YTDLP_FLAG in cmd:
+        return "bundled with this app"
+    if len(cmd) >= 3 and cmd[1] == "-m":
+        return "python -m yt_dlp"
+    p = Path(cmd[0])
+    if p.exists() and p.parent == config.BIN_DIR:
+        return f"downloaded copy ({p})"
+    return str(p) if p.exists() else cmd[0]
+
+
+def is_self_contained(cmd):
+    """True when yt-dlp is bundled, so `-U` cannot really update anything."""
+    return bool(cmd) and SELF_YTDLP_FLAG in cmd
+
+
 def find_ffmpeg():
+    for name in ("ffmpeg.exe", "ffmpeg"):
+        p = config.BIN_DIR / name
+        if p.exists():
+            return str(p)
     found = shutil.which("ffmpeg")
     if found:
         return found
@@ -86,17 +141,26 @@ def version(cmd):
 
 
 def update(cmd):
-    """Try yt-dlp's self-updater, then fall back to pip. Returns (ok, message)."""
+    """Try yt-dlp's self-updater, then fall back to pip.
+
+    Returns (ok, message). A bundled yt-dlp has nothing to update in place —
+    the caller should point the user at the Releases page instead.
+    """
+    if is_self_contained(cmd):
+        return False, "bundled"
+
+    out = ""
     try:
         r = run(list(cmd) + ["-U"], timeout=300)
         out = ((r.stdout or "") + (r.stderr or "")).strip()
         if r.returncode == 0:
-            low = out.lower()
-            if "up to date" in low or "already" in low:
-                return True, out
             return True, out
     except Exception:
-        out = ""
+        pass
+
+    # The pip fallback needs a real interpreter; there is none in a frozen build.
+    if config.IS_FROZEN:
+        return False, out or "not updatable here"
 
     try:
         r = run([sys.executable, "-m", "pip", "install", "-U", "yt-dlp"], timeout=600)
@@ -143,13 +207,16 @@ def probe(cmd, url, proxy="", cookies="", timeout=180):
 # --------------------------------------------------------------------------- #
 # Format summarising — the part that makes the UI readable
 # --------------------------------------------------------------------------- #
-def summarize(info):
+def summarize(info, has_ffmpeg=True):
     """Turn yt-dlp's format list into resolution groups for the UI.
 
     How formats look on X:
       * progressive  `http-*`  vcodec=None, acodec=None  -> already has audio
       * video only   `hls-*`   vcodec=avc1.., acodec='none' -> needs an audio track
       * audio only   `hls-audio-*-Audio`  vcodec='none'
+
+    Without ffmpeg the two tracks cannot be merged, so only formats that already
+    carry audio are recommended.
     """
     duration = info.get("duration") or 0
     formats = info.get("formats") or []
@@ -182,6 +249,7 @@ def summarize(info):
                 "protocol": proto,
                 "efficient": proto == "HLS",
                 "needsAudio": needs_audio,
+                "needsFFmpeg": needs_audio and not has_ffmpeg,
                 "audioId": audio_id if needs_audio else None,
                 "size": total,
                 "tbr": f.get("tbr") or 0,
@@ -195,20 +263,23 @@ def summarize(info):
         })
 
     # Recommend the highest resolution that stays under 1.5 GB, so short clips
-    # get 1080p while multi-hour streams drop to a sane tier. Fall back to the
-    # smallest option available.
+    # get 1080p while multi-hour streams drop to a sane tier. Options that would
+    # need ffmpeg are skipped when ffmpeg is missing. Fall back to the smallest
+    # usable option available.
+    usable = [
+        o for g in groups for o in g["options"]
+        if has_ffmpeg or not o["needsFFmpeg"]
+    ]
     recommended = None
     for g in groups:
         for o in g["options"]:
-            if o["size"] <= 1.5 * 1024 ** 3:
+            if o in usable and o["size"] <= 1.5 * 1024 ** 3:
                 recommended = o["id"]
                 break
         if recommended:
             break
-    if not recommended and groups:
-        recommended = min(
-            (o for g in groups for o in g["options"]), key=lambda o: o["size"]
-        )["id"]
+    if not recommended and usable:
+        recommended = min(usable, key=lambda o: o["size"])["id"]
 
     return {
         "id": info.get("id"),
@@ -221,6 +292,7 @@ def summarize(info):
         "groups": groups,
         "audioOnly": ({"id": audio_id, "size": audio_size} if audio_id else None),
         "recommended": recommended,
+        "hasFFmpeg": has_ffmpeg,
     }
 
 
