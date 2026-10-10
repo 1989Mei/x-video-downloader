@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/1989Mei/x-video-downloader/releases/latest"><img src="https://img.shields.io/github/v/release/1989Mei/x-video-downloader.svg" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg" alt="Platforms">
@@ -58,16 +59,33 @@
 
 ## 快速开始
 
-**前置要求：** Python 3.9+ 与 ffmpeg
+两种用法，挑一种：
 
-### Windows
+### 方式一 · 下载即用（推荐，无需任何环境准备）
 
-双击 `run.bat` 即可。脚本会自动找到 Python；只有在完全找不到 yt-dlp 时才会安装它。
+到 **[Releases](https://github.com/1989Mei/x-video-downloader/releases/latest)** 下载
+`x-video-downloader.exe`，双击运行，浏览器会自动打开。
 
-### macOS / Linux
+- ✅ 不需要装 Python
+- ✅ 不需要装 yt-dlp（已内置）
+- ⚙️ ffmpeg 可选 —— 见下方说明
+
+> ⚠️ **首次运行 Windows 可能拦一下**（程序没有代码签名）：
+> 点「**更多信息**」→「**仍要运行**」。
+> 杀毒软件误报也是同理 —— 这是 PyInstaller 打包程序的常见现象；
+> 源码完全公开，你也可以用 `build_exe.py` 自己构建。
+
+配置文件和下载记录都在 **exe 旁边**，整个文件夹拷走即可（便携模式）。
+
+### 方式二 · 从源码运行（需要 Python 3.9+）
+
+**Windows** — 双击 `run.bat`。脚本会自动找到 Python；只有在完全找不到 yt-dlp 时才会安装它。
+
+**macOS / Linux**
 
 ```bash
-chmod +x run.sh
+git clone https://github.com/1989Mei/x-video-downloader.git
+cd x-video-downloader
 ./run.sh
 ```
 
@@ -78,9 +96,16 @@ pip install -U yt-dlp
 python app.py
 ```
 
-首次运行会在当前目录生成 `config.json`，并自动打开浏览器。
+首次运行会生成 `config.json`，并自动打开浏览器。
 
-### 安装 ffmpeg
+### 关于 ffmpeg（可选）
+
+ffmpeg 只用来**把视频轨和音频轨合并**。
+
+**没有它程序照样能用** —— 会自动只提供「自带音频」的格式，并把需要合并的格式标灰禁用。
+画质一样，只是文件大约 2–4 倍大。**不会下出没声音的视频。**
+
+想用更省空间的格式，装一下即可：
 
 | 平台 | 命令 |
 |---|---|
@@ -88,7 +113,7 @@ python app.py
 | macOS | `brew install ffmpeg` |
 | Debian / Ubuntu | `sudo apt install ffmpeg` |
 
-> ffmpeg 只在**合并音视频**时用到。没有它时视频仍能下载，但「纯视频」格式会没有声音 —— 启动日志里会明确提示。
+装完重启程序即可识别。
 
 ---
 
@@ -234,6 +259,7 @@ x-video-downloader/
 │   ├── style.css
 │   └── app.js          # 前端逻辑 + 中英双语字典
 ├── run.bat / run.sh
+├── build_exe.py        # PyInstaller 打包脚本（生成单文件 exe）
 ├── config.example.json
 └── requirements.txt
 ```
@@ -248,6 +274,15 @@ x-video-downloader/
 
 - 不引入新的第三方依赖（除非有充分理由）
 - 改动后在 Windows 上实际跑一遍
+
+### 自己打包 exe
+
+```bash
+pip install pyinstaller yt-dlp
+python build_exe.py
+```
+
+产物在 `dist/`。exe 里内置了 Python 运行时和 yt-dlp，所以体积约 17 MB。
 
 ---
 

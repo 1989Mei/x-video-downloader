@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/1989Mei/x-video-downloader/releases/latest"><img src="https://img.shields.io/github/v/release/1989Mei/x-video-downloader.svg" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg" alt="Platforms">
@@ -59,17 +60,36 @@ paste a link  →  parse qualities  →  pick one  →  queue it  →  open the 
 
 ## Quick start
 
-**Requirements:** Python 3.9+ and ffmpeg
+Two ways to run it — pick one.
 
-### Windows
+### Option 1 · Download and run (recommended, zero setup)
 
-Just double-click `run.bat`. It finds Python automatically and only installs yt-dlp
-when no working copy can be found at all.
+Grab **`x-video-downloader.exe`** from the
+[Releases page](https://github.com/1989Mei/x-video-downloader/releases/latest) and
+double-click it. Your browser opens automatically.
 
-### macOS / Linux
+- ✅ No Python required
+- ✅ No yt-dlp required (it is bundled)
+- ⚙️ ffmpeg is optional — see below
+
+> ⚠️ **Windows may warn you on first run** (the binary is unsigned):
+> click **More info** → **Run anyway**. Antivirus false positives are the same
+> story — a well-known artefact of PyInstaller builds. The source is fully
+> public, and you can build it yourself with `build_exe.py`.
+
+`config.json` and your downloads live **next to the executable**, so the whole
+folder is portable.
+
+### Option 2 · Run from source (needs Python 3.9+)
+
+**Windows** — double-click `run.bat`. It finds Python automatically and only
+installs yt-dlp when no working copy can be found at all.
+
+**macOS / Linux**
 
 ```bash
-chmod +x run.sh
+git clone https://github.com/1989Mei/x-video-downloader.git
+cd x-video-downloader
 ./run.sh
 ```
 
@@ -80,10 +100,17 @@ pip install -U yt-dlp
 python app.py
 ```
 
-A `config.json` is created in the current directory on first run, and your browser
-opens automatically.
+A `config.json` is created on first run, and your browser opens automatically.
 
-### Installing ffmpeg
+### About ffmpeg (optional)
+
+ffmpeg is only used to **merge the video and audio tracks**.
+
+**The app works fine without it.** It simply offers only formats that already
+carry audio, and greys out the ones that would need merging. Same picture
+quality, roughly 2–4× larger files — but **never a silent video**.
+
+To unlock the more efficient formats:
 
 | Platform | Command |
 |---|---|
@@ -91,8 +118,7 @@ opens automatically.
 | macOS | `brew install ffmpeg` |
 | Debian / Ubuntu | `sudo apt install ffmpeg` |
 
-> ffmpeg is only needed to **merge audio and video**. Without it, video still
-> downloads, but video-only formats end up silent — the startup log says so explicitly.
+Restart the app afterwards and it will pick it up.
 
 ---
 
@@ -243,6 +269,7 @@ x-video-downloader/
 │   ├── style.css
 │   └── app.js          # front-end logic + the zh/en dictionary
 ├── run.bat / run.sh
+├── build_exe.py        # PyInstaller wrapper for the single-file build
 ├── config.example.json
 └── requirements.txt
 ```
@@ -258,6 +285,16 @@ Issues and PRs are welcome. Before submitting, please make sure:
 
 - No new third-party dependencies are introduced (unless there is a good reason)
 - You actually ran it on Windows after your change
+
+### Building the executable yourself
+
+```bash
+pip install pyinstaller yt-dlp
+python build_exe.py
+```
+
+The result lands in `dist/`. It is about 17 MB because the Python runtime and
+yt-dlp are baked in.
 
 ---
 
